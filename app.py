@@ -258,7 +258,7 @@ def analyze_transcription(transcription, language):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
@@ -285,7 +285,7 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": combined_prompt}],
             temperature=0.7
         )
@@ -395,6 +395,10 @@ def handle_successful_payment(session_id, user_id):
         st.error(f"Error processing payment: {str(e)}")
         return False
 
+def update_credits_display():
+    if st.session_state.authenticated:
+        st.sidebar.markdown(f"### Credits remaining: {st.session_state.credits}")
+
 def main():
     st.set_page_config(
         page_title="Transcription & Notes Generator & Information Extraction App",
@@ -427,6 +431,8 @@ def main():
         st.session_state.summary_file = None
     if "processing_completed" not in st.session_state:
         st.session_state.processing_completed = False
+    if "credits_container" not in st.session_state:
+        st.session_state.credits_container = None
 
     # Próba odzyskania tokena z query params
     if not st.session_state.authenticated:
@@ -500,29 +506,21 @@ def main():
                             st.error("Username or email already exists!")
         else:
             st.title(f"Welcome, {st.session_state.username}!")
-            st.write(f"Credits remaining: {st.session_state.credits}")
+            # Kontener na kredyty, który będzie aktualizowany
+            credits_container = st.empty()
+            credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
+            st.session_state.credits_container = credits_container
 
             # Sekcja zakupu kredytów
             st.title("Buy Credits")
             
             # Przycisk do zakupu kredytów
-            if st.button("Buy 30 Credits - $4"):
+            if st.button("Buy 30 Credits - $4", type="primary"):
                 checkout_session = create_checkout_session(st.session_state.user_id)
                 if checkout_session:
-                    st.markdown(f"""
-                    <a href="{checkout_session.url}" target="_blank">
-                        <button style="
-                            background-color: #4CAF50;
-                            color: white;
-                            padding: 10px 20px;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-size: 16px;">
-                            Proceed to Payment
-                        </button>
-                    </a>
-                    """, unsafe_allow_html=True)
+                    # Automatyczne przekierowanie do strony płatności
+                    st.markdown(f'<meta http-equiv="refresh" content="0;url={checkout_session.url}">', unsafe_allow_html=True)
+                    st.info("Redirecting to payment page...")
                 else:
                     st.error("Error creating payment session. Please try again.")
 
@@ -620,6 +618,7 @@ def main():
             if title.strip():
                 if save_transcription(st.session_state.user_id, title, st.session_state.transcription, st.session_state.notes):
                     st.success("Transcription has been saved!")
+                    st.rerun()  # Odświeżamy stronę, aby zaktualizować historię
                 else:
                     st.error("An error occurred while saving the transcription.")
             else:
@@ -640,23 +639,45 @@ def main():
         use_previous_notes = st.checkbox("Include previous notes in the analysis", help="If checked, the previous notes will be included in the prompt for generating new notes")
         
         if st.button("Extract Information"):
-            if custom_prompt.strip():
-                progress = st.progress(0)
-                status_placeholder = st.empty()
-                status_placeholder.text("Analyzing transcription with your instructions...")
-                progress.progress(85)
-                
-                st.session_state.custom_prompt = custom_prompt  # Zapisujemy prompt w sesji
-                st.session_state.custom_notes = analyze_with_custom_prompt(
-                    st.session_state.transcription,
-                    st.session_state.notes,
-                    custom_prompt,
-                    include_previous_notes=use_previous_notes
-                )
+            # Sprawdzamy czy użytkownik ma wystarczającą liczbę kredytów
+            if st.session_state.credits <= 0:
+                st.error("⚠️ You have no credits remaining. Please refill your credits with button on the left sidebar.")
+                return
 
-                progress.progress(100)
-                status_placeholder.success("Analysis completed! ✅")
-                progress.empty()
+            if custom_prompt.strip():
+                # Używamy kredytu przed rozpoczęciem analizy
+                if not use_credit(st.session_state.user_id):
+                    st.error("⚠️ You have no credits remaining. Please contact support to get more credits.")
+                    return
+                
+                # Aktualizujemy liczbę kredytów w sesji i wyświetlanie
+                st.session_state.credits -= 1
+                if st.session_state.credits_container:
+                    st.session_state.credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
+                
+                try:
+                    progress = st.progress(0)
+                    status_placeholder = st.empty()
+                    status_placeholder.text("Analyzing transcription with your instructions...")
+                    progress.progress(85)
+                    
+                    st.session_state.custom_prompt = custom_prompt  # Zapisujemy prompt w sesji
+                    st.session_state.custom_notes = analyze_with_custom_prompt(
+                        st.session_state.transcription,
+                        st.session_state.notes,
+                        custom_prompt,
+                        include_previous_notes=use_previous_notes
+                    )
+
+                    progress.progress(100)
+                    status_placeholder.success("Analysis completed! ✅")
+                    progress.empty()
+                except Exception as e:
+                    # W przypadku błędu zwracamy kredyt
+                    st.session_state.credits += 1
+                    if st.session_state.credits_container:
+                        st.session_state.credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
+                    st.error(f"Error during analysis: {str(e)}")
             else:
                 st.error("Please enter your question or instruction!")
 
@@ -685,6 +706,7 @@ def main():
                         st.session_state.custom_prompt
                     ):
                         st.success("Custom analysis has been saved!")
+                        st.rerun()  # Odświeżamy stronę, aby zaktualizować historię
                     else:
                         st.error("An error occurred while saving the custom analysis.")
 
@@ -779,6 +801,8 @@ def main():
                     st.error(f"Error during processing: {str(e)}")
                 # Zwracamy kredyt w przypadku błędu
                 st.session_state.credits += 1
+                if st.session_state.credits_container:
+                    st.session_state.credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
                 return
                 
         except Exception as e:
