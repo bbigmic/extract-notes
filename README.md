@@ -19,6 +19,9 @@ OPENAI_API_KEY=your_openai_api_key
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 
+# Database
+DATABASE_URL=postgres://user:password@ep-example.region.aws.neon.tech/dbname
+
 # URLs (domyślne wartości dla lokalnego rozwoju)
 APP_URL=http://localhost:8501  # W produkcji: https://twoja-app.streamlit.app
 API_URL=http://localhost:8000  # W produkcji: https://twoja-api.onrender.com
@@ -49,6 +52,15 @@ API_URL=http://localhost:8000  # W produkcji: https://twoja-api.onrender.com
 
 ## Deployment
 
+### Baza danych (Neon)
+
+1. Utwórz konto na [Neon](https://neon.tech)
+2. Utwórz nowy projekt
+3. W projekcie:
+   - Skopiuj connection string
+   - Dodaj go jako `DATABASE_URL` w zmiennych środowiskowych
+   - Możesz utworzyć osobne branche dla rozwoju i produkcji
+
 ### Backend (Render)
 
 1. Utwórz konto na [Render](https://render.com)
@@ -58,6 +70,7 @@ API_URL=http://localhost:8000  # W produkcji: https://twoja-api.onrender.com
 5. Ustaw nazwę (np. "transcription-api")
 6. Wybierz środowisko "Python"
 7. Ustaw zmienne środowiskowe:
+   - `DATABASE_URL` (z Neon)
    - `OPENAI_API_KEY`
    - `STRIPE_SECRET_KEY`
    - `STRIPE_PUBLISHABLE_KEY`

@@ -10,13 +10,77 @@ import torch
 import streamlit as st
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import yt_dlp
 from openai import OpenAI
 from dotenv import load_dotenv
 import stripe
 from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits
 import json
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+# Konfiguracja JWT
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-keep-it-secret")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 godziny
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Funkcje autoryzacji przeniesione z auth.py
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def decode_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        return username
+    except JWTError:
+        return None
+
+# Funkcje API przeniesione z api.py
+def handle_login(username: str, password: str):
+    user = verify_user(username, password)
+    if not user:
+        return None
+    
+    access_token = create_access_token(data={"sub": username})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user[0],
+        "username": user[1],
+        "credits": user[2]
+    }
+
+def handle_register(username: str, password: str, email: str):
+    try:
+        success = register_user(username, password, email)
+        if success:
+            return True
+        return False
+    except Exception as e:
+        return False
+
+def handle_verify_token(token: str):
+    username = decode_token(token)
+    if username is None:
+        return None
+    user = verify_user(username, None)
+    if not user:
+        return None
+    return {
+        "user_id": user[0],
+        "username": user[1],
+        "credits": user[2]
+    }
 
 # Inicjalizacja bazy danych
 init_db()
@@ -228,13 +292,27 @@ def save_transcription_and_notes(transcription, notes):
     
     return file_path
 
+def generate_title_from_transcription(transcription, max_words=3):
+    """Generuje tytuł z pierwszych słów transkrypcji i aktualnej daty"""
+    words = transcription.split()
+    title_words = words[:max_words]
+    title = " ".join(title_words)
+    if len(words) > max_words:
+        title += "..."
+    
+    # Dodaj datę w formacie "DD.MM.YYYY HH:MM"
+    current_date = datetime.now().strftime("%d.%m.%Y %H:%M")
+    return f"{title} | {current_date}"
+
 def show_user_transcriptions():
     st.sidebar.title("Your Transcriptions")
     transcriptions = get_user_transcriptions(st.session_state.user_id)
     
     if transcriptions:
         for trans_id, title, created_at in transcriptions:
-            if st.sidebar.button(f"{title} ({created_at})", key=f"trans_{trans_id}"):
+            # Wyświetl tytuł w formie "tekst | data"
+            button_label = title
+            if st.sidebar.button(button_label, key=f"trans_{trans_id}"):
                 trans_data = get_transcription(trans_id, st.session_state.user_id)
                 if trans_data:
                     st.session_state.transcription = trans_data[1]
@@ -309,17 +387,15 @@ def main():
     if not st.session_state.authenticated:
         saved_token = st.query_params.get("token", None)
         if saved_token:
-            user_data = verify_token(saved_token)
+            user_data = handle_verify_token(saved_token)
             if user_data:
                 st.session_state.token = saved_token
                 st.session_state.authenticated = True
                 st.session_state.user_id = user_data["user_id"]
                 st.session_state.username = user_data["username"]
                 st.session_state.credits = user_data["credits"]
-                # Zapisz token w URL
                 st.query_params["token"] = st.session_state.token
             else:
-                # Token wygasł lub jest nieprawidłowy
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.query_params.clear()
@@ -327,16 +403,14 @@ def main():
     
     # Sprawdzanie tokenu przy starcie
     if st.session_state.token:
-        user_data = verify_token(st.session_state.token)
+        user_data = handle_verify_token(st.session_state.token)
         if user_data:
             st.session_state.authenticated = True
             st.session_state.user_id = user_data["user_id"]
             st.session_state.username = user_data["username"]
             st.session_state.credits = user_data["credits"]
-            # Zapisz token w URL
             st.query_params["token"] = st.session_state.token
         else:
-            # Token wygasł lub jest nieprawidłowy
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.query_params.clear()
@@ -353,7 +427,7 @@ def main():
                 password = st.text_input("Password", type="password")
                 
                 if st.button("Sign In"):
-                    result = login_user(username, password)
+                    result = handle_login(username, password)
                     if result:
                         st.session_state.token = result["access_token"]
                         st.session_state.authenticated = True
@@ -375,7 +449,7 @@ def main():
                     if st.form_submit_button("Register"):
                         if new_password != confirm_password:
                             st.error("Passwords do not match!")
-                        elif register_user(new_username, new_password, email):
+                        elif handle_register(new_username, new_password, email):
                             st.success("Registration successful! You can now log in. You received 3 free credits!")
                         else:
                             st.error("Username or email already exists!")
@@ -414,7 +488,7 @@ def main():
                 if handle_successful_payment(session_id, user_id):
                     st.success("Payment successful! 30 credits have been added to your account.")
                     # Odśwież dane użytkownika
-                    user_data = verify_token(st.session_state.token)
+                    user_data = handle_verify_token(st.session_state.token)
                     if user_data:
                         st.session_state.credits = user_data["credits"]
                     # Wyczyść parametry URL po udanej płatności
@@ -430,6 +504,9 @@ def main():
                     del st.session_state[key]
                 st.query_params.clear()
                 st.rerun()
+
+            # Pokaż historię transkrypcji
+            show_user_transcriptions()
 
     # Główny interfejs aplikacji
     if not st.session_state.authenticated:
@@ -488,9 +565,11 @@ def main():
         st.text_area("Transcription", st.session_state.transcription, height=300)
         st.text_area("Notes", st.session_state.notes, height=300)
         
-        # Pole do wprowadzenia tytułu i przycisk zapisu
-        title = st.text_input("Transcription Title")
-        if st.button("Save Transcription"):
+        # Automatycznie generuj tytuł z pierwszych słów transkrypcji i daty
+        default_title = generate_title_from_transcription(st.session_state.transcription)
+        title = st.text_input("Transcription Title", value=default_title)
+        
+        if st.button("Save Transcription with New Title"):
             if title.strip():
                 if save_transcription(st.session_state.user_id, title, st.session_state.transcription, st.session_state.notes):
                     st.success("Transcription has been saved!")
@@ -589,9 +668,9 @@ def main():
                 st.session_state.transcription, st.session_state.notes
             )
             
-            # Automatycznie zapisujemy transkrypcję z tytułem zawierającym datę
-            title = f"Transcription {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            save_transcription(st.session_state.user_id, title, st.session_state.transcription, st.session_state.notes)
+            # Automatycznie zapisujemy transkrypcję z wygenerowanym tytułem zawierającym tekst i datę
+            auto_title = generate_title_from_transcription(st.session_state.transcription)
+            save_transcription(st.session_state.user_id, auto_title, st.session_state.transcription, st.session_state.notes)
             
             st.session_state.processing_completed = True
             status_placeholder.success("Task successfully completed! ✅")
