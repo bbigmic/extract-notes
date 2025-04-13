@@ -71,6 +71,8 @@ def init_db():
                     title TEXT,
                     transcription TEXT,
                     notes TEXT,
+                    custom_notes TEXT,
+                    custom_prompt TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -91,10 +93,12 @@ def init_db():
             c.execute('''
                 CREATE TABLE IF NOT EXISTS transcriptions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    title TEXT,
-                    transcription TEXT,
+                    user_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    transcription TEXT NOT NULL,
                     notes TEXT,
+                    custom_notes TEXT,
+                    custom_prompt TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users (id)
                 )
@@ -115,10 +119,12 @@ def init_db():
         c.execute('''
             CREATE TABLE IF NOT EXISTS transcriptions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                title TEXT,
-                transcription TEXT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                transcription TEXT NOT NULL,
                 notes TEXT,
+                custom_notes TEXT,
+                custom_prompt TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
@@ -177,21 +183,15 @@ def verify_user(username, password):
     finally:
         conn.close()
 
-def save_transcription(user_id, title, transcription, notes):
+def save_transcription(user_id, title, transcription, notes, custom_notes=None, custom_prompt=None):
     """Zapisuje transkrypcję dla użytkownika"""
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
-            c.execute('''
-                INSERT INTO transcriptions (user_id, title, transcription, notes)
-                VALUES (%s, %s, %s, %s)
-            ''', (user_id, title, transcription, notes))
-        else:
-            c.execute('''
-                INSERT INTO transcriptions (user_id, title, transcription, notes)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, title, transcription, notes))
+        c.execute('''INSERT INTO transcriptions 
+                     (user_id, title, transcription, notes, custom_notes, custom_prompt)
+                     VALUES (?, ?, ?, ?, ?, ?)''',
+                 (user_id, title, transcription, notes, custom_notes, custom_prompt))
         conn.commit()
         return True
     except Exception as e:
@@ -224,25 +224,19 @@ def get_user_transcriptions(user_id):
     finally:
         conn.close()
 
-def get_transcription(transcription_id, user_id):
+def get_transcription(trans_id, user_id):
     """Pobiera konkretną transkrypcję użytkownika"""
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
-            c.execute('''
-                SELECT title, transcription, notes
-                FROM transcriptions
-                WHERE id = %s AND user_id = %s
-            ''', (transcription_id, user_id))
-        else:
-            c.execute('''
-                SELECT title, transcription, notes
-                FROM transcriptions
-                WHERE id = ? AND user_id = ?
-            ''', (transcription_id, user_id))
-        transcription = c.fetchone()
-        return transcription
+        c.execute('''SELECT id, transcription, notes, custom_notes, custom_prompt 
+                     FROM transcriptions 
+                     WHERE id = ? AND user_id = ?''', (trans_id, user_id))
+        result = c.fetchone()
+        return result
+    except Exception as e:
+        print(f"Error getting transcription: {e}")
+        return None
     finally:
         conn.close()
 

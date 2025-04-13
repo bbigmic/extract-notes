@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -20,39 +21,28 @@ wheels/
 .installed.cfg
 *.egg
 
-# Środowisko wirtualne
+# Virtual Environment
 venv/
 ENV/
-env/
-.env
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
 
-# Pliki aplikacji
+# Project specific
+.env
 *.db
-*.sqlite3
-downloaded_video.*
-converted_audio.*
-extracted_audio.*
 *.wav
 *.mp3
 *.mp4
-*.avi
-*.mov
 *.m4a
+*.mov
+*.avi
+*.mkv
 *.flac
-
-# Logi
-*.log
-.streamlit/secrets.toml
-
-# Pliki tymczasowe
-tmp/
 temp/
-.temp/
-*.tmp 
+downloads/
+uploads/
+*.log 

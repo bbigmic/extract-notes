@@ -15,7 +15,7 @@ import yt_dlp
 from openai import OpenAI
 from dotenv import load_dotenv
 import stripe
-from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits
+from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits, get_db_connection
 import json
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -93,7 +93,6 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 
 # Konfiguracja API
-API_URL = os.getenv("API_URL", "http://localhost:8000")
 APP_URL = os.getenv("APP_URL", "http://localhost:8501")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -106,35 +105,6 @@ SUPPORTED_AUDIO = (".wav", ".mp3", ".m4a", ".flac")
 SUPPORTED_VIDEO = (".mp4", ".mov", ".avi", ".mkv")
 MAX_FILE_SIZE_MB = 500  # Maksymalny rozmiar pliku w MB
 
-def login_user(username: str, password: str) -> dict:
-    response = requests.post(
-        f"{API_URL}/token",
-        json={"username": username, "password": password}
-    )
-    if response.status_code == 200:
-        return response.json()
-    return None
-
-def register_user(username: str, password: str, email: str) -> bool:
-    response = requests.post(
-        f"{API_URL}/register",
-        json={"username": username, "password": password, "email": email}
-    )
-    return response.status_code == 200
-
-def verify_token(token: str) -> dict:
-    response = requests.get(
-        f"{API_URL}/verify-token",
-        params={"token": token}
-    )
-    if response.status_code == 200:
-        return response.json()
-    return None
-
-def add_credits(user_id: int) -> bool:
-    response = requests.post(f"{API_URL}/add-credits/{user_id}")
-    return response.status_code == 200
-
 def is_valid_file(file_path):
     try:
         command = ["ffmpeg", "-v", "error", "-i", file_path, "-f", "null", "-"]
@@ -144,18 +114,57 @@ def is_valid_file(file_path):
         return False
 
 def download_video(url):
-    output_path = "downloaded_video.mp4"
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': output_path,
-        'quiet': True
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        return output_path
-    except Exception as e:
-        raise ValueError(f"Failed to download video: {e}")
+    print(f"Downloading from URL: {url}")
+    with tempfile.NamedTemporaryFile(suffix='.%(ext)s', delete=False) as temp_video:
+        output_template = temp_video.name
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': output_template,
+            'quiet': False,  # Włączamy logi dla debugowania
+            'no_warnings': False,
+            'extract_flat': False,
+            'ignoreerrors': True,
+            'noplaylist': True,
+            'socket_timeout': 30,
+            'retries': 3,
+            'verbose': True,  # Włączamy tryb verbose dla debugowania
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+            }],
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate',
+            }
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    print("Starting download...")
+                    info = ydl.extract_info(url, download=True)
+                    if info is None:
+                        raise ValueError("Could not extract video information")
+                    
+                    # Pobierz faktyczną ścieżkę pliku
+                    output_path = ydl.prepare_filename(info)
+                    output_path = output_path.rsplit('.', 1)[0] + '.wav'
+                    
+                    if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                        raise ValueError("Download failed - empty or missing file")
+                    
+                    print(f"Download completed successfully. File saved as: {output_path}")
+                    return output_path
+                    
+                except Exception as e:
+                    print(f"Download error: {str(e)}")
+                    raise ValueError(f"Failed to download: {str(e)}")
+        except Exception as e:
+            print(f"YDL error: {str(e)}")
+            if os.path.exists(output_template):
+                os.unlink(output_template)
+            raise ValueError(f"Failed to download video: {str(e)}")
 
 def convert_to_wav(file_path):
     print(f"Converting file: {file_path}")
@@ -165,22 +174,26 @@ def convert_to_wav(file_path):
         raise FileNotFoundError(f"File {file_path} does not exist.")
     
     if not is_valid_file(file_path):
-        raise ValueError(f"File {file_path}  is corrupted or unsupported.")
+        raise ValueError(f"File {file_path} is corrupted or unsupported.")
     
-    if file_ext in SUPPORTED_AUDIO:
-        audio = AudioSegment.from_file(file_path)
-        output_path = "converted_audio.wav"
-        audio.export(output_path, format="wav")
+    # Używamy NamedTemporaryFile do utworzenia unikalnej nazwy pliku
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+        output_path = temp_wav.name
+        
+        if file_ext in SUPPORTED_AUDIO:
+            audio = AudioSegment.from_file(file_path)
+            audio.export(output_path, format="wav")
+        elif file_ext in SUPPORTED_VIDEO:
+            try:
+                ffmpeg_extract_audio(file_path, output_path)
+            except Exception as e:
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+                raise ValueError(f"Failed to extract audio: {e}")
+        else:
+            raise ValueError(f"Unsupported file format: {file_ext}")
+        
         return output_path
-    elif file_ext in SUPPORTED_VIDEO:
-        output_path = "extracted_audio.wav"
-        try:
-            ffmpeg_extract_audio(file_path, output_path)
-        except Exception as e:
-            raise ValueError(f"Failed to extract audio: {e}")
-        return output_path
-    else:
-        raise ValueError(f"Unsupported file format: {file_ext}")
 
 def transcribe_audio(audio_path, language):
     print("Transcribing audio...")
@@ -245,7 +258,7 @@ def analyze_transcription(transcription, language):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
@@ -272,7 +285,7 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4",
             messages=[{"role": "user", "content": combined_prompt}],
             temperature=0.7
         )
@@ -281,8 +294,12 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
         return f"OpenAI API error: {e}"
 
 def save_transcription_and_notes(transcription, notes):
+    # Tworzymy folder dla plików tymczasowych aplikacji, jeśli nie istnieje
+    app_temp_dir = os.path.join(tempfile.gettempdir(), "transcription_app")
+    os.makedirs(app_temp_dir, exist_ok=True)
+    
     filename = f"meeting_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    file_path = os.path.join(tempfile.gettempdir(), filename)
+    file_path = os.path.join(app_temp_dir, filename)
     
     with open(file_path, "w", encoding="utf-8") as f:
         f.write("📌 **Transcription:**\n")
@@ -310,18 +327,25 @@ def show_user_transcriptions():
     
     if transcriptions:
         for trans_id, title, created_at in transcriptions:
-            # Wyświetl tytuł w formie "tekst | data"
             button_label = title
             if st.sidebar.button(button_label, key=f"trans_{trans_id}"):
                 trans_data = get_transcription(trans_id, st.session_state.user_id)
                 if trans_data:
                     st.session_state.transcription = trans_data[1]
                     st.session_state.notes = trans_data[2]
+                    st.session_state.custom_notes = trans_data[3]
+                    st.session_state.custom_prompt = trans_data[4]
                     st.session_state.processing_completed = True
                     st.rerun()
 
 def create_checkout_session(user_id):
     try:
+        # Zachowaj token z aktualnej sesji
+        current_token = st.query_params.get("token", "")
+        success_url = f'{APP_URL}?session_id={{CHECKOUT_SESSION_ID}}&user_id={user_id}'
+        if current_token:
+            success_url += f'&token={current_token}'
+            
         checkout_session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
@@ -336,8 +360,8 @@ def create_checkout_session(user_id):
                 'quantity': 1,
             }],
             mode='payment',
-            success_url=f'{APP_URL}?session_id={{CHECKOUT_SESSION_ID}}&user_id={user_id}',
-            cancel_url=APP_URL,
+            success_url=success_url,
+            cancel_url=f'{APP_URL}?token={current_token}' if current_token else APP_URL,
             client_reference_id=str(user_id),
         )
         return checkout_session
@@ -350,16 +374,35 @@ def handle_successful_payment(session_id, user_id):
         # Weryfikacja sesji płatności
         session = stripe.checkout.Session.retrieve(session_id)
         if session.payment_status == "paid" and session.client_reference_id == str(user_id):
-            # Dodaj kredyty
-            if add_credits(user_id):
+            # Dodaj kredyty bezpośrednio używając funkcji z database.py
+            conn = get_db_connection()
+            c = conn.cursor()
+            try:
+                c.execute("UPDATE users SET credits = credits + 30 WHERE id = ?", (user_id,))
+                conn.commit()
+                # Aktualizuj dane użytkownika w sesji
+                user = verify_user(st.session_state.username, None)
+                if user:
+                    st.session_state.credits = user[2]
                 return True
+            except Exception as e:
+                print(f"Database error: {e}")
+                return False
+            finally:
+                conn.close()
         return False
     except Exception as e:
-        st.error(f"Error processing payment: {e}")
+        st.error(f"Error processing payment: {str(e)}")
         return False
 
 def main():
-    st.title("Audio/Video Transcription and Information Extraction")
+    st.set_page_config(
+        page_title="Transcription & Notes Generator & Information Extraction App",
+        page_icon="🎯",
+        layout="wide"
+    )
+
+    st.title("Audio/Video Transcription & Notes Generator & Information Extraction")
     
     # Inicjalizacja zmiennych sesyjnych
     if "authenticated" not in st.session_state:
@@ -378,6 +421,8 @@ def main():
         st.session_state.notes = None
     if "custom_notes" not in st.session_state:
         st.session_state.custom_notes = None
+    if "custom_prompt" not in st.session_state:
+        st.session_state.custom_prompt = None
     if "summary_file" not in st.session_state:
         st.session_state.summary_file = None
     if "processing_completed" not in st.session_state:
@@ -487,17 +532,19 @@ def main():
                 user_id = int(st.query_params["user_id"])
                 if handle_successful_payment(session_id, user_id):
                     st.success("Payment successful! 30 credits have been added to your account.")
-                    # Odśwież dane użytkownika
-                    user_data = handle_verify_token(st.session_state.token)
-                    if user_data:
-                        st.session_state.credits = user_data["credits"]
-                    # Wyczyść parametry URL po udanej płatności
+                    # Zachowujemy token i usuwamy tylko parametry płatności
+                    params_to_keep = {"token": st.query_params.get("token")} if "token" in st.query_params else {}
                     st.query_params.clear()
-                    if st.session_state.token:
-                        st.query_params["token"] = st.session_state.token
+                    for key, value in params_to_keep.items():
+                        st.query_params[key] = value
                     st.rerun()
                 else:
                     st.error("Error processing payment confirmation.")
+                    # Zachowujemy token i usuwamy tylko parametry płatności
+                    params_to_keep = {"token": st.query_params.get("token")} if "token" in st.query_params else {}
+                    st.query_params.clear()
+                    for key, value in params_to_keep.items():
+                        st.query_params[key] = value
 
             if st.button("Sign Out"):
                 for key in list(st.session_state.keys()):
@@ -536,7 +583,7 @@ def main():
 
     # Sprawdzamy kredyty przed rozpoczęciem nowej transkrypcji
     if not st.session_state.processing_completed and st.session_state.credits <= 0:
-        st.error("⚠️ You have no credits remaining. Please contact support to get more credits.")
+        st.error("⚠️ You have no credits remaining. Please refill your credits with button on the left sidebar.")
         return
 
     # Tworzę dwie kolumny dla wyboru języków
@@ -599,6 +646,7 @@ def main():
                 status_placeholder.text("Analyzing transcription with your instructions...")
                 progress.progress(85)
                 
+                st.session_state.custom_prompt = custom_prompt  # Zapisujemy prompt w sesji
                 st.session_state.custom_notes = analyze_with_custom_prompt(
                     st.session_state.transcription,
                     st.session_state.notes,
@@ -615,7 +663,31 @@ def main():
         if st.session_state.custom_notes:
             st.header("Extracted Information")
             st.text_area("Analysis Results", st.session_state.custom_notes, height=300)
-        
+            
+            # Sekcja zapisywania analizy
+            st.subheader("Save Analysis")
+            custom_title = st.text_input(
+                "Title for Custom Analysis",
+                value=f"Custom Analysis | {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                key="custom_analysis_title"
+            )
+            
+            if st.button("Save Custom Analysis", type="primary"):
+                if not custom_title.strip():
+                    st.error("Please enter a title for your analysis.")
+                else:
+                    if save_transcription(
+                        st.session_state.user_id,
+                        custom_title,
+                        st.session_state.transcription,
+                        st.session_state.notes,
+                        st.session_state.custom_notes,
+                        st.session_state.custom_prompt
+                    ):
+                        st.success("Custom analysis has been saved!")
+                    else:
+                        st.error("An error occurred while saving the custom analysis.")
+
         return
 
     if not video_url and not uploaded_file:
@@ -625,63 +697,102 @@ def main():
     start_processing = st.button("Start Processing")
 
     if not st.session_state.processing_completed and start_processing:
-        if video_url:
-            st.info("Processing video...")
-            file_path = download_video(video_url)
-        elif uploaded_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp_file:
-                temp_file.write(uploaded_file.read())
-                file_path = temp_file.name
+        temp_files = []  # Lista plików do wyczyszczenia
+        progress = None
+        status_placeholder = None
         
-        if os.path.getsize(file_path) > MAX_FILE_SIZE_MB * 1024 * 1024:
-            st.error("The file is too large! The maximum size is 500 MB.")
-            os.remove(file_path)
-            return
-        
-        # Używamy kredytu przed rozpoczęciem przetwarzania
-        if not use_credit(st.session_state.user_id):
-            st.error("⚠️ You have no credits remaining. Please contact support to get more credits.")
-            return
-        
-        # Aktualizujemy liczbę kredytów w sesji
-        st.session_state.credits -= 1
-        
-        progress = st.progress(0)
-        status_placeholder = st.empty()
         try:
-            status_placeholder.text("Converting file to WAV format...")
-            progress.progress(25)
-            audio_path = convert_to_wav(file_path)
+            if video_url:
+                st.info("Processing video...")
+                try:
+                    file_path = download_video(video_url)
+                    if not file_path or not os.path.exists(file_path):
+                        st.error("Failed to download the video. Please check the URL and try again.")
+                        return
+                    temp_files.append(file_path)
+                except Exception as e:
+                    st.error(f"Error downloading video: {str(e)}")
+                    return
+            elif uploaded_file:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp_file:
+                        temp_file.write(uploaded_file.read())
+                        file_path = temp_file.name
+                        temp_files.append(file_path)
+                except Exception as e:
+                    st.error(f"Error processing uploaded file: {str(e)}")
+                    return
             
-            status_placeholder.text("Transcribing audio... it can take a few minutes.")
-            progress.progress(50)
-            st.session_state.transcription = transcribe_audio(audio_path, transcription_language)
+            if not os.path.exists(file_path):
+                st.error("File not found. Please try again.")
+                return
+                
+            if os.path.getsize(file_path) > MAX_FILE_SIZE_MB * 1024 * 1024:
+                st.error(f"The file is too large! The maximum size is {MAX_FILE_SIZE_MB} MB.")
+                return
             
-            status_placeholder.text("Analyzing key conversation points...")
-            progress.progress(75)
-            st.session_state.notes = analyze_transcription(st.session_state.transcription, output_language)
+            # Używamy kredytu przed rozpoczęciem przetwarzania
+            if not use_credit(st.session_state.user_id):
+                st.error("⚠️ You have no credits remaining. Please contact support to get more credits.")
+                return
             
-            status_placeholder.text("Saving transcription and notes...")
-            progress.progress(100)
+            # Aktualizujemy liczbę kredytów w sesji
+            st.session_state.credits -= 1
+            
+            progress = st.progress(0)
+            status_placeholder = st.empty()
+            
+            try:
+                status_placeholder.text("Converting file to WAV format...")
+                progress.progress(25)
+                audio_path = convert_to_wav(file_path)
+                temp_files.append(audio_path)
+                
+                status_placeholder.text("Transcribing audio... it can take a few minutes.")
+                progress.progress(50)
+                st.session_state.transcription = transcribe_audio(audio_path, transcription_language)
+                
+                status_placeholder.text("Analyzing key conversation points...")
+                progress.progress(75)
+                st.session_state.notes = analyze_transcription(st.session_state.transcription, output_language)
+                
+                status_placeholder.text("Saving transcription and notes...")
+                progress.progress(100)
 
-            st.session_state.summary_file = save_transcription_and_notes(
-                st.session_state.transcription, st.session_state.notes
-            )
-            
-            # Automatycznie zapisujemy transkrypcję z wygenerowanym tytułem zawierającym tekst i datę
-            auto_title = generate_title_from_transcription(st.session_state.transcription)
-            save_transcription(st.session_state.user_id, auto_title, st.session_state.transcription, st.session_state.notes)
-            
-            st.session_state.processing_completed = True
-            status_placeholder.success("Task successfully completed! ✅")
-            
-            st.rerun()
-            
+                # Nie dodajemy pliku podsumowania do temp_files
+                st.session_state.summary_file = save_transcription_and_notes(
+                    st.session_state.transcription, st.session_state.notes
+                )
+                
+                # Automatycznie zapisujemy transkrypcję z wygenerowanym tytułem
+                auto_title = generate_title_from_transcription(st.session_state.transcription)
+                save_transcription(st.session_state.user_id, auto_title, st.session_state.transcription, st.session_state.notes)
+                
+                st.session_state.processing_completed = True
+                status_placeholder.success("Task successfully completed! ✅")
+                
+                st.rerun()
+            except Exception as e:
+                if status_placeholder:
+                    status_placeholder.error(f"Error during processing: {str(e)}")
+                else:
+                    st.error(f"Error during processing: {str(e)}")
+                # Zwracamy kredyt w przypadku błędu
+                st.session_state.credits += 1
+                return
+                
         except Exception as e:
-            status_placeholder.error(f"Error: {e}")
+            st.error(f"Unexpected error: {str(e)}")
         finally:
-            os.remove(file_path)
-            progress.empty()
+            # Czyszczenie tylko plików audio/wideo
+            for temp_file in temp_files:
+                try:
+                    if temp_file and os.path.exists(temp_file):
+                        os.unlink(temp_file)
+                except Exception as e:
+                    print(f"Error removing temporary file {temp_file}: {e}")
+            if progress:
+                progress.empty()
 
 if __name__ == "__main__":
     main()
