@@ -12,7 +12,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 import yt_dlp
-from openai import OpenAI
+import openai
 from dotenv import load_dotenv
 import stripe
 from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits, get_db_connection
@@ -95,7 +95,8 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 # Konfiguracja API
 APP_URL = os.getenv("APP_URL", "http://localhost:8501")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Inicjalizacja klienta OpenAI
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Konfiguracja globalna
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
@@ -257,12 +258,12 @@ def analyze_transcription(transcription, language):
     prompt = prompts.get(language, prompts["en"])
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
-        return response.choices[0].message.content.strip()
+        return response['choices'][0]['message']['content'].strip()
     except Exception as e:
         return f"OpenAI API error: {e}"
 
@@ -284,12 +285,12 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
     """
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": combined_prompt}],
             temperature=0.7
         )
-        return response.choices[0].message.content.strip()
+        return response['choices'][0]['message']['content'].strip()
     except Exception as e:
         return f"OpenAI API error: {e}"
 
