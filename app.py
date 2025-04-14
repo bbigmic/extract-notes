@@ -126,17 +126,17 @@ def download_video(url):
             'extract_flat': False,
             'ignoreerrors': True,
             'noplaylist': True,
-            'socket_timeout': 60,  # Zwiększamy timeout
-            'retries': 10,  # Zwiększamy liczbę prób
+            'socket_timeout': 60,
+            'retries': 10,
             'verbose': True,
-            'sleep_interval': 10,  # Zwiększamy opóźnienie między próbami
+            'sleep_interval': 10,
             'max_sleep_interval': 20,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
             }],
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',  # Używamy User-Agent dla urządzenia mobilnego
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate, br',
@@ -156,8 +156,8 @@ def download_video(url):
             instagram_username = os.getenv("INSTAGRAM_USERNAME")
             instagram_password = os.getenv("INSTAGRAM_PASSWORD")
             
-            # Tworzymy folder dla plików tymczasowych
-            temp_dir = os.path.join(tempfile.gettempdir(), "instagram_temp")
+            # Tworzymy folder dla plików tymczasowych w /tmp
+            temp_dir = "/tmp/instagram_temp"
             os.makedirs(temp_dir, exist_ok=True)
             cookies_file = os.path.join(temp_dir, "instagram_cookies.txt")
             
@@ -166,7 +166,17 @@ def download_video(url):
                     'username': instagram_username,
                     'password': instagram_password,
                     'cookiefile': cookies_file,
-                    'cookiesfrombrowser': None,  # Wyłączamy pobieranie ciasteczek z przeglądarki
+                    'cookiesfrombrowser': None,
+                })
+
+                # Dodaj nagłówki specyficzne dla Instagrama
+                ydl_opts['http_headers'].update({
+                    'Origin': 'https://www.instagram.com',
+                    'Referer': 'https://www.instagram.com/',
+                    'X-Instagram-AJAX': '1',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': 'missing',
+                    'Accept': '*/*'
                 })
             else:
                 raise ValueError("Instagram credentials are required to download from Instagram. Please configure INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in environment variables.")
@@ -182,6 +192,13 @@ def download_video(url):
                 'age_limit': 0,
                 'geo_bypass': True,
                 'nocheckcertificate': True,
+                'legacy_server_connect': True,
+                'no_check_certificate': True,
+                'prefer_insecure': True,
+                'add_header': [
+                    'Cookie:sessionid=missing',
+                    'User-Agent:Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1'
+                ]
             })
 
         max_retries = 3
@@ -191,10 +208,23 @@ def download_video(url):
         while retry_count < max_retries:
             try:
                 print(f"Attempt {retry_count + 1} of {max_retries}")
-                time.sleep(5 * (retry_count + 1))  # Zwiększające się opóźnienie między próbami
+                time.sleep(5 * (retry_count + 1))
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     print("Starting download...")
+                    if 'instagram.com' in url.lower():
+                        # Próba bezpośredniego pobrania strony logowania
+                        try:
+                            import requests
+                            session = requests.Session()
+                            login_page = session.get('https://www.instagram.com/accounts/login/')
+                            if login_page.status_code == 200:
+                                print("Successfully accessed Instagram login page")
+                            else:
+                                print(f"Failed to access Instagram login page: {login_page.status_code}")
+                        except Exception as e:
+                            print(f"Error accessing Instagram login page: {e}")
+
                     info = ydl.extract_info(url, download=True)
                     if info is None:
                         raise ValueError("Could not extract video information")
