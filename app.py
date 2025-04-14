@@ -127,35 +127,36 @@ def download_video(url):
             'ignoreerrors': True,
             'noplaylist': True,
             'socket_timeout': 30,
-            'retries': 5,  # Zwiększamy liczbę prób
-            'fragment_retries': 5,
-            'retry_sleep_functions': {'http': lambda n: 5 * (n + 1)},  # Dodajemy opóźnienie między próbami
+            'retries': 3,
             'verbose': True,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
             }],
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Sec-Fetch-Dest': 'document',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
                 'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1'
-            },
-            'cookiesfrombrowser': None,  # Wyłączamy pobieranie ciasteczek z przeglądarki
-            'cookiefile': None,  # Wyłączamy zapisywanie ciasteczek
-            'no_check_certificate': True,  # Pomijamy weryfikację certyfikatu
+            }
         }
+
+        # Dodaj dane uwierzytelniające dla Instagrama, jeśli są dostępne
+        if 'instagram.com' in url.lower():
+            instagram_username = os.getenv("INSTAGRAM_USERNAME")
+            instagram_password = os.getenv("INSTAGRAM_PASSWORD")
+            if instagram_username and instagram_password:
+                ydl_opts.update({
+                    'username': instagram_username,
+                    'password': instagram_password,
+                })
+            else:
+                raise ValueError("Instagram credentials are required to download from Instagram. Please configure INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in environment variables.")
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
                     print("Starting download...")
-                    # Dodajemy opóźnienie przed pobraniem
-                    time.sleep(2)
                     info = ydl.extract_info(url, download=True)
                     if info is None:
                         raise ValueError("Could not extract video information")
@@ -172,8 +173,8 @@ def download_video(url):
                     
                 except Exception as e:
                     print(f"Download error: {str(e)}")
-                    if "HTTP Error 429" in str(e):
-                        raise ValueError("Too many requests. Please try again later (wait a few minutes).")
+                    if 'instagram.com' in url.lower():
+                        raise ValueError("Failed to download from Instagram. Please make sure the URL is correct and the content is publicly accessible.")
                     raise ValueError(f"Failed to download: {str(e)}")
         except Exception as e:
             print(f"YDL error: {str(e)}")
