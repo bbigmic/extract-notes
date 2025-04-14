@@ -126,42 +126,79 @@ def download_video(url):
             'extract_flat': False,
             'ignoreerrors': True,
             'noplaylist': True,
-            'socket_timeout': 30,
-            'retries': 3,
+            'socket_timeout': 60,  # Zwiększamy timeout
+            'retries': 10,  # Zwiększamy liczbę prób
             'verbose': True,
+            'sleep_interval': 10,  # Zwiększamy opóźnienie między próbami
+            'max_sleep_interval': 20,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
             }],
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',  # Używamy User-Agent dla urządzenia mobilnego
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'TE': 'trailers'
             }
         }
 
-        # Dodaj dane uwierzytelniające dla Instagrama, jeśli są dostępne
+        # Dodaj dane uwierzytelniające dla Instagrama
         if 'instagram.com' in url.lower():
             instagram_username = os.getenv("INSTAGRAM_USERNAME")
             instagram_password = os.getenv("INSTAGRAM_PASSWORD")
+            
+            # Tworzymy folder dla plików tymczasowych
+            temp_dir = os.path.join(tempfile.gettempdir(), "instagram_temp")
+            os.makedirs(temp_dir, exist_ok=True)
+            cookies_file = os.path.join(temp_dir, "instagram_cookies.txt")
+            
             if instagram_username and instagram_password:
                 ydl_opts.update({
                     'username': instagram_username,
                     'password': instagram_password,
+                    'cookiefile': cookies_file,
+                    'cookiesfrombrowser': None,  # Wyłączamy pobieranie ciasteczek z przeglądarki
                 })
             else:
                 raise ValueError("Instagram credentials are required to download from Instagram. Please configure INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in environment variables.")
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                try:
+            # Dodatkowe opcje dla Instagrama
+            ydl_opts.update({
+                'sleep_interval_requests': 5,
+                'sleep_interval_subtitles': 5,
+                'ap_mso': None,
+                'ap_username': None,
+                'extract_flat': False,
+                'no_color': True,
+                'age_limit': 0,
+                'geo_bypass': True,
+                'nocheckcertificate': True,
+            })
+
+        max_retries = 3
+        retry_count = 0
+        last_error = None
+
+        while retry_count < max_retries:
+            try:
+                print(f"Attempt {retry_count + 1} of {max_retries}")
+                time.sleep(5 * (retry_count + 1))  # Zwiększające się opóźnienie między próbami
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     print("Starting download...")
                     info = ydl.extract_info(url, download=True)
                     if info is None:
                         raise ValueError("Could not extract video information")
                     
-                    # Pobierz faktyczną ścieżkę pliku
                     output_path = ydl.prepare_filename(info)
                     output_path = output_path.rsplit('.', 1)[0] + '.wav'
                     
@@ -171,16 +208,22 @@ def download_video(url):
                     print(f"Download completed successfully. File saved as: {output_path}")
                     return output_path
                     
-                except Exception as e:
-                    print(f"Download error: {str(e)}")
-                    if 'instagram.com' in url.lower():
-                        raise ValueError("Failed to download from Instagram. Please make sure the URL is correct and the content is publicly accessible.")
-                    raise ValueError(f"Failed to download: {str(e)}")
-        except Exception as e:
-            print(f"YDL error: {str(e)}")
-            if os.path.exists(output_template):
-                os.unlink(output_template)
-            raise ValueError(f"Failed to download video: {str(e)}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"Attempt {retry_count + 1} failed: {last_error}")
+                retry_count += 1
+                if retry_count < max_retries:
+                    print(f"Waiting before next attempt...")
+                    continue
+                
+                if '429' in last_error:
+                    raise ValueError("Instagram rate limit reached. Please try again later (after about 30 minutes).")
+                elif 'login' in last_error.lower():
+                    raise ValueError("Instagram login failed. Please check your credentials.")
+                else:
+                    raise ValueError(f"Failed to download: {last_error}")
+                
+        raise ValueError(f"Failed after {max_retries} attempts. Last error: {last_error}")
 
 def convert_to_wav(file_path):
     print(f"Converting file: {file_path}")
