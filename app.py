@@ -121,14 +121,14 @@ def download_video(url):
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': output_template,
-            'quiet': False,  # Włączamy logi dla debugowania
+            'quiet': False,
             'no_warnings': False,
             'extract_flat': False,
             'ignoreerrors': True,
             'noplaylist': True,
             'socket_timeout': 30,
             'retries': 3,
-            'verbose': True,  # Włączamy tryb verbose dla debugowania
+            'verbose': True,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
@@ -140,6 +140,19 @@ def download_video(url):
                 'Sec-Fetch-Mode': 'navigate',
             }
         }
+
+        # Dodaj dane uwierzytelniające dla Instagrama, jeśli są dostępne
+        if 'instagram.com' in url.lower():
+            instagram_username = os.getenv("INSTAGRAM_USERNAME")
+            instagram_password = os.getenv("INSTAGRAM_PASSWORD")
+            if instagram_username and instagram_password:
+                ydl_opts.update({
+                    'username': instagram_username,
+                    'password': instagram_password,
+                })
+            else:
+                raise ValueError("Instagram credentials are required to download from Instagram. Please configure INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in environment variables.")
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
@@ -160,6 +173,8 @@ def download_video(url):
                     
                 except Exception as e:
                     print(f"Download error: {str(e)}")
+                    if 'instagram.com' in url.lower():
+                        raise ValueError("Failed to download from Instagram. Please make sure the URL is correct and the content is publicly accessible.")
                     raise ValueError(f"Failed to download: {str(e)}")
         except Exception as e:
             print(f"YDL error: {str(e)}")
