@@ -285,6 +285,7 @@ def analyze_transcription(transcription, language):
     prompt = prompts.get(language, prompts["en"])
 
     try:
+        client = openai.OpenAI()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
@@ -312,8 +313,9 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
     """
 
     try:
+        client = openai.OpenAI()
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": combined_prompt}],
             temperature=0.7
         )
