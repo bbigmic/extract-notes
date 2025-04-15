@@ -199,11 +199,35 @@ def convert_to_wav(file_path):
 def transcribe_audio(audio_path, language):
     print("Transcribing audio...")
     try:
-        model = whisper.load_model("large")
-        result = model.transcribe(audio_path, language=language if language != "auto" else None)
+        print(f"Loading Whisper model...")
+        model = whisper.load_model("base")  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
+        print(f"Model loaded successfully. Starting transcription of file: {audio_path}")
+        
+        # Sprawdzamy czy plik istnieje i ma odpowiedni rozmiar
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        
+        file_size = os.path.getsize(audio_path)
+        print(f"Audio file size: {file_size / (1024*1024):.2f} MB")
+        
+        # Dodajemy parametry dla whisper, aby lepiej kontrolować proces
+        result = model.transcribe(
+            audio_path,
+            language=language if language != "auto" else None,
+            fp16=False,  # Wyłączamy fp16 dla lepszej kompatybilności
+            verbose=True  # Włączamy szczegółowe logi
+        )
+        
+        if not result or 'text' not in result:
+            raise ValueError("Transcription result is empty or invalid")
+            
+        print("Transcription completed successfully")
         return result['text']
     except Exception as e:
-        return f"Transcription error: {e}"
+        print(f"Error during transcription: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return f"Transcription error: {str(e)}"
 
 def analyze_transcription(transcription, language):
     print("Analyzing key conversation points...")
