@@ -200,7 +200,7 @@ def transcribe_audio(audio_path, language):
     print("Transcribing audio...")
     try:
         print(f"Loading Whisper model...")
-        model = whisper.load_model("base")  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
+        model = whisper.load_model("large")  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
         print(f"Model loaded successfully. Starting transcription of file: {audio_path}")
         
         # Sprawdzamy czy plik istnieje i ma odpowiedni rozmiar
