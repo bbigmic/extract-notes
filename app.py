@@ -19,7 +19,6 @@ from database import init_db, register_user, verify_user, save_transcription, ge
 import json
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import hashlib
 
 # Konfiguracja JWT
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-keep-it-secret")
@@ -115,35 +114,21 @@ def is_valid_file(file_path):
     except subprocess.CalledProcessError:
         return False
 
-def get_cache_path(url):
-    """Generuje ścieżkę do pliku cache na podstawie URL."""
-    url_hash = hashlib.md5(url.encode()).hexdigest()
-    cache_dir = os.path.join(tempfile.gettempdir(), "instagram_cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    return os.path.join(cache_dir, f"{url_hash}.wav")
-
 def download_video(url):
     print(f"Downloading from URL: {url}")
-    
-    # Sprawdź cache
-    cache_path = get_cache_path(url)
-    if os.path.exists(cache_path):
-        print(f"Using cached file: {cache_path}")
-        return cache_path
-        
     with tempfile.NamedTemporaryFile(suffix='.%(ext)s', delete=False) as temp_video:
         output_template = temp_video.name
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': output_template,
-            'quiet': False,
+            'quiet': False,  # Włączamy logi dla debugowania
             'no_warnings': False,
             'extract_flat': False,
             'ignoreerrors': True,
             'noplaylist': True,
             'socket_timeout': 30,
             'retries': 3,
-            'verbose': True,
+            'verbose': True,  # Włączamy tryb verbose dla debugowania
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
@@ -155,52 +140,32 @@ def download_video(url):
                 'Sec-Fetch-Mode': 'navigate',
             }
         }
-
-        max_retries = 3
-        retry_delay = 5  # sekundy
-        
-        for attempt in range(max_retries):
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    try:
-                        print(f"Download attempt {attempt + 1}/{max_retries}...")
-                        info = ydl.extract_info(url, download=True)
-                        if info is None:
-                            raise ValueError("Could not extract video information")
-                        
-                        # Pobierz faktyczną ścieżkę pliku
-                        output_path = ydl.prepare_filename(info)
-                        output_path = output_path.rsplit('.', 1)[0] + '.wav'
-                        
-                        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-                            raise ValueError("Download failed - empty or missing file")
-                        
-                        # Zapisz do cache
-                        os.rename(output_path, cache_path)
-                        print(f"Download completed successfully. File saved as: {cache_path}")
-                        return cache_path
-                        
-                    except Exception as e:
-                        error_message = str(e)
-                        print(f"Download error: {error_message}")
-                        
-                        if "HTTP Error 429" in error_message:
-                            if attempt < max_retries - 1:
-                                wait_time = retry_delay * (attempt + 1)
-                                print(f"Rate limit exceeded. Waiting {wait_time} seconds before retry...")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                raise ValueError("Rate limit exceeded. Please try again later.")
-                        raise ValueError(f"Failed to download: {error_message}")
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    print(f"All download attempts failed: {str(e)}")
-                    if os.path.exists(output_template):
-                        os.unlink(output_template)
-                    raise ValueError(f"Failed to download video after {max_retries} attempts: {str(e)}")
-                print(f"Attempt {attempt + 1} failed, retrying...")
-                time.sleep(retry_delay)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    print("Starting download...")
+                    info = ydl.extract_info(url, download=True)
+                    if info is None:
+                        raise ValueError("Could not extract video information")
+                    
+                    # Pobierz faktyczną ścieżkę pliku
+                    output_path = ydl.prepare_filename(info)
+                    output_path = output_path.rsplit('.', 1)[0] + '.wav'
+                    
+                    if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                        raise ValueError("Download failed - empty or missing file")
+                    
+                    print(f"Download completed successfully. File saved as: {output_path}")
+                    return output_path
+                    
+                except Exception as e:
+                    print(f"Download error: {str(e)}")
+                    raise ValueError(f"Failed to download: {str(e)}")
+        except Exception as e:
+            print(f"YDL error: {str(e)}")
+            if os.path.exists(output_template):
+                os.unlink(output_template)
+            raise ValueError(f"Failed to download video: {str(e)}")
 
 def convert_to_wav(file_path):
     print(f"Converting file: {file_path}")
