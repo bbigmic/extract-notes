@@ -282,12 +282,13 @@ def analyze_transcription(transcription, language):
     prompt = prompts.get(language, prompts["en"])
 
     try:
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"OpenAI API error: {e}"
 
@@ -309,12 +310,13 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
     """
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": combined_prompt}],
             temperature=0.7
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"OpenAI API error: {e}"
 
