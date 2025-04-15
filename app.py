@@ -96,7 +96,10 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 APP_URL = os.getenv("APP_URL", "http://localhost:8501")
 
 # Inicjalizacja klienta OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = openai.OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://api.openai.com/v1"
+)
 
 # Konfiguracja globalna
 warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
@@ -282,7 +285,6 @@ def analyze_transcription(transcription, language):
     prompt = prompts.get(language, prompts["en"])
 
     try:
-        client = openai.OpenAI()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
@@ -310,7 +312,6 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
     """
 
     try:
-        client = openai.OpenAI()
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": combined_prompt}],
