@@ -118,54 +118,52 @@ def download_video(url):
     print(f"Downloading from URL: {url}")
     with tempfile.NamedTemporaryFile(suffix='.%(ext)s', delete=False) as temp_video:
         output_template = temp_video.name
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'outtmpl': output_template,
-            'quiet': False,  # Włączamy logi dla debugowania
-            'no_warnings': False,
-            'extract_flat': False,
-            'ignoreerrors': True,
-            'noplaylist': True,
-            'socket_timeout': 30,
-            'retries': 3,
-            'verbose': True,  # Włączamy tryb verbose dla debugowania
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-            }],
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Sec-Fetch-Mode': 'navigate',
-            }
+        
+    ydl_opts = {
+        'format': 'bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': output_template,
+        'quiet': False,  # Włączamy logi dla debugowania
+        'no_warnings': False,
+        'extract_flat': False,
+        'ignoreerrors': True,
+        'noplaylist': True,
+        'socket_timeout': 30,
+        'retries': 3,
+        'verbose': True,  # Włączamy tryb verbose dla debugowania
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'wav',
+        }],
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
         }
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                try:
-                    print("Starting download...")
-                    info = ydl.extract_info(url, download=True)
-                    if info is None:
-                        raise ValueError("Could not extract video information")
-                    
-                    # Pobierz faktyczną ścieżkę pliku
-                    output_path = ydl.prepare_filename(info)
-                    output_path = output_path.rsplit('.', 1)[0] + '.wav'
-                    
-                    if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-                        raise ValueError("Download failed - empty or missing file")
-                    
-                    print(f"Download completed successfully. File saved as: {output_path}")
-                    return output_path
-                    
-                except Exception as e:
-                    print(f"Download error: {str(e)}")
-                    raise ValueError(f"Failed to download: {str(e)}")
-        except Exception as e:
-            print(f"YDL error: {str(e)}")
-            if os.path.exists(output_template):
-                os.unlink(output_template)
-            raise ValueError(f"Failed to download video: {str(e)}")
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            print("Starting download...")
+            info = ydl.extract_info(url, download=True)
+            if info is None:
+                raise ValueError("Could not extract video information")
+            
+            # Pobierz faktyczną ścieżkę pliku
+            output_path = ydl.prepare_filename(info)
+            output_path = output_path.rsplit('.', 1)[0] + '.wav'
+            
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                raise ValueError("Download failed - empty or missing file")
+            
+            print(f"Download completed successfully. File saved as: {output_path}")
+        return output_path
+            
+    except Exception as e:
+        print(f"Download error: {str(e)}")
+        if os.path.exists(output_template):
+            os.unlink(output_template)
+        raise ValueError(f"Failed to download video: {str(e)}")
 
 def convert_to_wav(file_path):
     print(f"Converting file: {file_path}")
@@ -180,27 +178,26 @@ def convert_to_wav(file_path):
     # Używamy NamedTemporaryFile do utworzenia unikalnej nazwy pliku
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
         output_path = temp_wav.name
-        
+    
+    try:
         if file_ext in SUPPORTED_AUDIO:
             audio = AudioSegment.from_file(file_path)
             audio.export(output_path, format="wav")
         elif file_ext in SUPPORTED_VIDEO:
-            try:
-                ffmpeg_extract_audio(file_path, output_path)
-            except Exception as e:
-                if os.path.exists(output_path):
-                    os.unlink(output_path)
-                raise ValueError(f"Failed to extract audio: {e}")
+            ffmpeg_extract_audio(file_path, output_path)
         else:
             raise ValueError(f"Unsupported file format: {file_ext}")
-        
         return output_path
+    except Exception as e:
+        if os.path.exists(output_path):
+            os.unlink(output_path)
+        raise ValueError(f"Failed to convert file: {str(e)}")
 
 def transcribe_audio(audio_path, language):
     print("Transcribing audio...")
     try:
         print(f"Loading Whisper model...")
-        model = whisper.load_model("base")  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
+        model = whisper.load_model("large")  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
         print(f"Model loaded successfully. Starting transcription of file: {audio_path}")
         
         # Sprawdzamy czy plik istnieje i ma odpowiedni rozmiar
@@ -304,7 +301,7 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
 
     if include_previous_notes:
         combined_prompt += f"""
-    
+
     **Poprzednie notatki:**
     {original_notes}
     """
@@ -349,7 +346,26 @@ def generate_title_from_transcription(transcription, max_words=3):
     return f"{title} | {current_date}"
 
 def show_user_transcriptions():
+
+    st.sidebar.divider()  # Dodajemy linię oddzielającą
+    
+    # Dodajemy przycisk "Rozpocznij od nowa" na górze sidebara
+    if st.sidebar.button("Start New Transcription", key="reset_app"):
+        # Resetujemy wszystkie potrzebne zmienne sesji
+        st.session_state.transcription = None
+        st.session_state.notes = None
+        st.session_state.custom_notes = None
+        st.session_state.custom_prompt = None
+        st.session_state.summary_file = None
+        st.session_state.processing_completed = False
+        # Resetujemy wartość inputa z linkiem
+        if 'video_url' in st.session_state:
+            del st.session_state.video_url
+        st.rerun()
+    
+
     st.sidebar.title("Your Transcriptions")
+
     transcriptions = get_user_transcriptions(st.session_state.user_id)
     
     if transcriptions:
@@ -365,11 +381,38 @@ def show_user_transcriptions():
                     st.session_state.processing_completed = True
                     st.rerun()
 
-def create_checkout_session(user_id):
+def create_checkout_session(user_id, package="basic"):
     try:
+        # Definicje pakietów
+        packages = {
+            "basic": {
+                "credits": 30,
+                "price": 400,  # $4.00
+                "name": "30 Credits Package",
+                "description": "Basic package with 30 credits for transcriptions"
+            },
+            "pro": {
+                "credits": 300,
+                "price": 3200,  # $32.00
+                "name": "300 Credits Package",
+                "description": "Professional package with 300 credits for transcriptions"
+            },
+            "enterprise": {
+                "credits": 3000,
+                "price": 14900,  # $149.00
+                "name": "3000 Credits Package",
+                "description": "Enterprise package with 3000 credits for transcriptions"
+            }
+        }
+        
+        if package not in packages:
+            raise ValueError("Invalid package selected")
+            
+        selected_package = packages[package]
+        
         # Zachowaj token z aktualnej sesji
         current_token = st.query_params.get("token", "")
-        success_url = f'{APP_URL}?session_id={{CHECKOUT_SESSION_ID}}&user_id={user_id}'
+        success_url = f'{APP_URL}?session_id={{CHECKOUT_SESSION_ID}}&user_id={user_id}&package={package}'
         if current_token:
             success_url += f'&token={current_token}'
             
@@ -379,10 +422,10 @@ def create_checkout_session(user_id):
                 'price_data': {
                     'currency': 'usd',
                     'product_data': {
-                        'name': '30 Credits Package',
-                        'description': '30 credits for transcriptions',
+                        'name': selected_package["name"],
+                        'description': selected_package["description"],
                     },
-                    'unit_amount': 400,  # $4.00 w centach
+                    'unit_amount': selected_package["price"],
                 },
                 'quantity': 1,
             }],
@@ -390,6 +433,9 @@ def create_checkout_session(user_id):
             success_url=success_url,
             cancel_url=f'{APP_URL}?token={current_token}' if current_token else APP_URL,
             client_reference_id=str(user_id),
+            metadata={
+                'credits': str(selected_package["credits"])
+            }
         )
         return checkout_session
     except Exception as e:
@@ -401,11 +447,14 @@ def handle_successful_payment(session_id, user_id):
         # Weryfikacja sesji płatności
         session = stripe.checkout.Session.retrieve(session_id)
         if session.payment_status == "paid" and session.client_reference_id == str(user_id):
+            # Pobierz liczbę kredytów z metadanych
+            credits_to_add = int(session.metadata.get('credits', 30))  # Domyślnie 30 jeśli nie znaleziono
+            
             # Dodaj kredyty bezpośrednio używając funkcji z database.py
             conn = get_db_connection()
             c = conn.cursor()
             try:
-                c.execute("UPDATE users SET credits = credits + 30 WHERE id = ?", (user_id,))
+                c.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (credits_to_add, user_id))
                 conn.commit()
                 # Aktualizuj dane użytkownika w sesji
                 user = verify_user(st.session_state.username, None)
@@ -460,6 +509,8 @@ def main():
         st.session_state.processing_completed = False
     if "credits_container" not in st.session_state:
         st.session_state.credits_container = None
+    if "show_package_dialog" not in st.session_state:
+        st.session_state.show_package_dialog = False
 
     # Próba odzyskania tokena z query params
     if not st.session_state.authenticated:
@@ -538,26 +589,67 @@ def main():
             credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
             st.session_state.credits_container = credits_container
 
-            # Sekcja zakupu kredytów
-            st.title("Buy Credits")
             
-            # Przycisk do zakupu kredytów
-            if st.button("Buy 30 Credits - $4", type="primary"):
-                checkout_session = create_checkout_session(st.session_state.user_id)
-                if checkout_session:
-                    # Automatyczne przekierowanie do strony płatności
-                    st.markdown(f'<meta http-equiv="refresh" content="0;url={checkout_session.url}">', unsafe_allow_html=True)
-                    st.info("Redirecting to payment page...")
-                else:
-                    st.error("Error creating payment session. Please try again.")
+            # Przycisk do pokazania popup z wyborem pakietu
+            if st.button("Buy Credits", type="primary"):
+                st.session_state.show_package_dialog = True
+                st.rerun()
+            
+            # Popup z wyborem pakietu
+            if st.session_state.get('show_package_dialog', False):
+                popup_container = st.container()
+                with popup_container:
+                    st.markdown("""
+                    <style>
+                        .stContainer {
+                            background-color: white;
+                            padding: 20px;
+                            border-radius: 10px;
+                            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+                            margin: 10px 0;
+                        }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    st.subheader("Select Credits Package")
+                    st.write("Choose your package:", help="Select the package that best suits your needs")
+                    credit_package = st.radio(
+                        label="",
+                        options=[
+                            "Buy 30 Credits for $4",
+                            "Buy 300 Credits for $32",
+                            "Buy 3000 Credits for $149"
+                        ],
+                        key="credit_package",
+                        label_visibility="collapsed"
+                    )
+                    
+                    if st.button("Proceed to Payment", type="primary", key="proceed_payment"):
+                        package_mapping = {
+                            "Buy 30 Credits for $4": "basic",
+                            "Buy 300 Credits for $32": "pro",
+                            "Buy 3000 Credits for $149": "enterprise"
+                        }
+                        selected_package = package_mapping[credit_package]
+                        checkout_session = create_checkout_session(st.session_state.user_id, selected_package)
+                        if checkout_session:
+                            st.session_state.show_package_dialog = False
+                            # Automatyczne przekierowanie do strony płatności
+                            st.markdown(f'<meta http-equiv="refresh" content="0;url={checkout_session.url}">', unsafe_allow_html=True)
+                            st.info("Redirecting to payment page...")
+                        else:
+                            st.error("Error creating payment session. Please try again.")
+                    
+                    if st.button("Cancel", key="cancel_credits"):
+                        st.session_state.show_package_dialog = False
+                        st.rerun()
 
             # Obsługa sukcesu płatności
             if "session_id" in st.query_params and "user_id" in st.query_params:
                 session_id = st.query_params["session_id"]
                 user_id = int(st.query_params["user_id"])
                 if handle_successful_payment(session_id, user_id):
-                    st.success("Payment successful! 30 credits have been added to your account.")
-                    # Zachowujemy token i usuwamy tylko parametry płatności
+                    st.success("Payment successful! Credits have been added to your account.")
                     params_to_keep = {"token": st.query_params.get("token")} if "token" in st.query_params else {}
                     st.query_params.clear()
                     for key, value in params_to_keep.items():
@@ -565,11 +657,11 @@ def main():
                     st.rerun()
                 else:
                     st.error("Error processing payment confirmation.")
-                    # Zachowujemy token i usuwamy tylko parametry płatności
                     params_to_keep = {"token": st.query_params.get("token")} if "token" in st.query_params else {}
                     st.query_params.clear()
                     for key, value in params_to_keep.items():
                         st.query_params[key] = value
+                    st.rerun()
 
             if st.button("Sign Out"):
                 for key in list(st.session_state.keys()):
@@ -605,7 +697,7 @@ def main():
         st.text_input("Paste YouTube or Instagram link", disabled=True)
         st.file_uploader("Select an audio or video file", type=list(SUPPORTED_AUDIO) + list(SUPPORTED_VIDEO), disabled=True)
         return
-
+    
     # Sprawdzamy kredyty przed rozpoczęciem nowej transkrypcji
     if not st.session_state.processing_completed and st.session_state.credits <= 0:
         st.error("⚠️ You have no credits remaining. Please refill your credits with button on the left sidebar.")
@@ -630,7 +722,8 @@ def main():
             index=0  # Domyślnie wybieramy "en"
         )
 
-    video_url = st.text_input("Paste YouTube or Instagram link")
+    # Modyfikujemy input z linkiem, aby używał session_state
+    video_url = st.text_input("Paste YouTube or Instagram link", key="video_url")
     uploaded_file = st.file_uploader("Select an audio or video file", type=list(SUPPORTED_AUDIO) + list(SUPPORTED_VIDEO))
 
     if st.session_state.processing_completed:
@@ -787,6 +880,8 @@ def main():
             
             # Aktualizujemy liczbę kredytów w sesji
             st.session_state.credits -= 1
+            if st.session_state.credits_container:
+                st.session_state.credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
             
             progress = st.progress(0)
             status_placeholder = st.empty()
@@ -830,20 +925,18 @@ def main():
                 st.session_state.credits += 1
                 if st.session_state.credits_container:
                     st.session_state.credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
-                return
-                
-        except Exception as e:
-            st.error(f"Unexpected error: {str(e)}")
-        finally:
-            # Czyszczenie tylko plików audio/wideo
-            for temp_file in temp_files:
-                try:
-                    if temp_file and os.path.exists(temp_file):
-                        os.unlink(temp_file)
-                except Exception as e:
-                    print(f"Error removing temporary file {temp_file}: {e}")
+            finally:
+                # Czyszczenie tylko plików audio/wideo
+                for temp_file in temp_files:
+                    try:
+                        if temp_file and os.path.exists(temp_file):
+                            os.unlink(temp_file)
+                    except Exception as e:
+                        print(f"Error removing temporary file {temp_file}: {e}")
             if progress:
                 progress.empty()
+        except Exception as e:
+            st.error(f"Unexpected error: {str(e)}")
 
 if __name__ == "__main__":
     main()
