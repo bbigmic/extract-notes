@@ -13,4 +13,6 @@ passlib==1.7.4
 stripe==8.4.0
 openai==1.12.0
 torch==2.2.0
-python-magic==0.4.27 
+python-magic==0.4.27
+psycopg2-binary==2.9.9
+gunicorn==21.2.0 

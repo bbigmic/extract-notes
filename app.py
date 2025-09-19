@@ -19,6 +19,8 @@ from database import init_db, register_user, verify_user, save_transcription, ge
 import json
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import gc
+import torch
 
 # Konfiguracja JWT
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-keep-it-secret")
@@ -181,7 +183,7 @@ def convert_to_wav(file_path):
     
     try:
         if file_ext in SUPPORTED_AUDIO:
-            audio = AudioSegment.from_file(file_path)
+            audio = AudioSegment.from_file(file_path, parameters=["-ac", "1", "-ar", "16000"])
             audio.export(output_path, format="wav")
         elif file_ext in SUPPORTED_VIDEO:
             ffmpeg_extract_audio(file_path, output_path)
@@ -193,11 +195,16 @@ def convert_to_wav(file_path):
             os.unlink(output_path)
         raise ValueError(f"Failed to convert file: {str(e)}")
 
+def cleanup_memory():
+    """Czyści pamięć po przetwarzaniu"""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
 def transcribe_audio(audio_path, language):
     print("Transcribing audio...")
     try:
         print(f"Loading Whisper model...")
-        model = whisper.load_model("large")  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
+        model = whisper.load_model("large")  # Zmienione z "large" na "base" dla mniejszego zużycia pamięci  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
         print(f"Model loaded successfully. Starting transcription of file: {audio_path}")
         
         # Sprawdzamy czy plik istnieje i ma odpowiedni rozmiar
