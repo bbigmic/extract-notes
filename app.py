@@ -200,11 +200,20 @@ def cleanup_memory():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
+
+# Sprawdź dostępność GPU
+if torch.cuda.is_available():
+    st.info("GPU acceleration enabled!")
+    device = "cuda"
+else:
+    st.warning("⚠️ Running on CPU - slower processing")
+    device = "cpu"
+
 def transcribe_audio(audio_path, language):
     print("Transcribing audio...")
     try:
-        print(f"Loading Whisper model...")
-        model = whisper.load_model("large")  # Zmienione z "large" na "base" dla mniejszego zużycia pamięci  # Zmieniam na model "base" zamiast "large" dla szybszego przetwarzania
+        print(f"Loading Whisper model on {device}...")
+        model = whisper.load_model("large", device=device)  # Użyj GPU
         print(f"Model loaded successfully. Starting transcription of file: {audio_path}")
         
         # Sprawdzamy czy plik istnieje i ma odpowiedni rozmiar
