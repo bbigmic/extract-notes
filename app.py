@@ -957,7 +957,6 @@ def main():
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
 
-    # Na końcu funkcji main(), przed ostatnim return
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; padding: 8px; color: #666; font-size: 11px;">
