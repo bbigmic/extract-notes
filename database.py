@@ -188,10 +188,16 @@ def save_transcription(user_id, title, transcription, notes, custom_notes=None, 
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        c.execute('''INSERT INTO transcriptions 
-                     (user_id, title, transcription, notes, custom_notes, custom_prompt)
-                     VALUES (?, ?, ?, ?, ?, ?)''',
-                 (user_id, title, transcription, notes, custom_notes, custom_prompt))
+        if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
+            c.execute('''INSERT INTO transcriptions 
+                         (user_id, title, transcription, notes, custom_notes, custom_prompt)
+                         VALUES (%s, %s, %s, %s, %s, %s)''',
+                     (user_id, title, transcription, notes, custom_notes, custom_prompt))
+        else:
+            c.execute('''INSERT INTO transcriptions 
+                         (user_id, title, transcription, notes, custom_notes, custom_prompt)
+                         VALUES (?, ?, ?, ?, ?, ?)''',
+                     (user_id, title, transcription, notes, custom_notes, custom_prompt))
         conn.commit()
         return True
     except Exception as e:

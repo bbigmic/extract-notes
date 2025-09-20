@@ -203,10 +203,8 @@ def cleanup_memory():
 
 # Sprawdź dostępność GPU
 if torch.cuda.is_available():
-    st.info("GPU acceleration enabled!")
     device = "cuda"
 else:
-    st.warning("⚠️ Running on CPU - slower processing")
     device = "cpu"
 
 def transcribe_audio(audio_path, language):
@@ -494,9 +492,10 @@ def update_credits_display():
 def main():
     st.set_page_config(
         page_title="Transcription & Notes Generator & Information Extraction App",
-        page_icon="🎯",
+        page_icon="💎",
         layout="wide"
     )
+    
 
     st.title("Audio/Video Transcription & Notes Generator & Information Extraction")
     
