@@ -604,7 +604,7 @@ def main():
                         elif not terms_accepted:
                             st.error("Musisz zaakceptować warunki użytkowania!")
                         elif handle_register(new_username, new_password, email, terms_accepted):
-                            st.success("Registration successful! You can now log in. You received 3 free credits!")
+                            st.success("Registration successful! You can now log in. You received 10 free credits!")
                         else:
                             st.error("Username or email already exists!")
         else:
