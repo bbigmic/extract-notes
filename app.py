@@ -12,7 +12,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 import yt_dlp
-import openai
+import openai from OpenAI
 from dotenv import load_dotenv
 import stripe
 from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits, get_db_connection, get_user_premium_tokens
