@@ -87,7 +87,7 @@ def init_db():
                     username TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
-                    credits INTEGER DEFAULT 3,
+                    credits INTEGER DEFAULT 10,
                     premium_tokens INTEGER DEFAULT 0,
                     terms_accepted BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
