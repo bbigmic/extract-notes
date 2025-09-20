@@ -493,15 +493,6 @@ def main():
 
     st.title("Audio/Video Transcription & Notes Generator & Information Extraction")
     
-    # Dodaj banner z linkiem do Telegram
-    st.markdown("""
-<div style="background: linear-gradient(90deg, #0088cc, #00a8ff); padding: 15px; border-radius: 10px; text-align: center; margin: 20px 0;">
-    <h3 style="color: white; margin: 0;"> Join Our Telegram Community!</h3>
-    <p style="color: white; margin: 5px 0;">Get updates, tips, and connect with other users</p>
-    <a href="https://t.me/extract_content_ai" target="_blank" style="color: white; text-decoration: none; font-weight: bold; font-size: 16px;"> Join Now</a>
-</div>
-""", unsafe_allow_html=True)
-
     # Inicjalizacja zmiennych sesyjnych
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -582,7 +573,6 @@ def main():
                         st.session_state.username = result["username"]
                         st.session_state.credits = result["credits"]
                         st.success("Successfully logged in!")
-                        st.info(" **Welcome back!** Join our [Telegram community](https://t.me/extract_content_ai) for updates!")
                         st.rerun()
                     else:
                         st.error("Invalid username or password")
@@ -608,7 +598,6 @@ def main():
                             st.error("Musisz zaakceptować warunki użytkowania!")
                         elif handle_register(new_username, new_password, email, terms_accepted):
                             st.success("Registration successful! You can now log in. You received 3 free credits!")
-                            st.info("💡 **Tip:** Join our [Telegram community](https://t.me/extract_content_ai) for updates and tips!")
                         else:
                             st.error("Username or email already exists!")
         else:
@@ -620,11 +609,6 @@ def main():
             st.markdown(f"### 💎 Diams Tokens: {premium_tokens}")
             credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
 
-            # Dodaj link do Telegram
-            st.markdown("---")
-            st.markdown("### 📱 Join Our Community")
-            st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
-            st.markdown("Get updates, tips & support!")
 
             # Przycisk do pokazania popup z wyborem pakietu
             if st.button("Buy Credits", type="primary"):
@@ -703,6 +687,13 @@ def main():
                     del st.session_state[key]
                 st.query_params.clear()
                 st.rerun()
+
+            # Dodaj link do Telegram
+            st.markdown("---")
+            st.markdown("### 📱 Join Our Community")
+            st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
+            st.markdown("Get updates, tips & support!")
+
 
             # Pokaż historię transkrypcji
             show_user_transcriptions()
