@@ -613,7 +613,7 @@ def main():
             credits_container = st.empty()
             premium_tokens = get_user_premium_tokens(st.session_state.user_id)
             credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
-            st.markdown(f"### 🏆 Premium Tokens: {premium_tokens}")
+            st.markdown(f"### 💎 Diams Tokens: {premium_tokens}")
 
             # Przycisk do pokazania popup z wyborem pakietu
             if st.button("Buy Credits", type="primary"):
