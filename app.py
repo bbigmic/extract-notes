@@ -592,7 +592,7 @@ def main():
                     
                     # Dodaj checkbox dla terms
                     terms_accepted = st.checkbox(
-                        "Rejestrując się wyrażasz zgodę na otrzymywanie promocji i innych informacji marketingowych",
+                        "By registering, you agree to receive promotions and other marketing information",
                         value=False
                     )
 
