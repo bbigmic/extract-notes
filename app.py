@@ -12,7 +12,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 import yt_dlp
-import openai from OpenAI
+import openai import OpenAI
 from dotenv import load_dotenv
 import stripe
 from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits, get_db_connection, get_user_premium_tokens
@@ -323,7 +323,7 @@ def analyze_with_custom_prompt(transcription, original_notes, custom_prompt, inc
     try:
         client = openai.OpenAI()
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": combined_prompt}],
             temperature=0.7
         )
