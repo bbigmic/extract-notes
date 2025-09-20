@@ -578,11 +578,11 @@ def main():
                         st.error("Invalid username or password")
             
 
-            # Dodaj link do Telegram
-            st.markdown("---")
-            st.markdown("### 📱 Join Our Community")
-            st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
-            st.markdown("Get updates, tips & support!")
+                # Dodaj link do Telegram
+                st.markdown("---")
+                st.markdown("### 📱 Join Our Community")
+                st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
+                st.markdown("Get updates, tips & support!")
 
             else:  # Rejestracja
                 with st.form("register_form"):
