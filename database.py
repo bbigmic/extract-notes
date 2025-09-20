@@ -243,7 +243,7 @@ def get_transcription(trans_id, user_id):
     try:
         c.execute('''SELECT id, transcription, notes, custom_notes, custom_prompt 
                      FROM transcriptions 
-                     WHERE id = ? AND user_id = ?''', (trans_id, user_id))
+                     WHERE id = %s AND user_id = %s''', (trans_id, user_id))
         result = c.fetchone()
         return result
     except Exception as e:
