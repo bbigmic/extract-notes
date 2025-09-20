@@ -957,5 +957,16 @@ def main():
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
 
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; padding: 8px; background-color: #f8f9fa; border-radius: 5px; margin-top: 20px;">
+        <a href="https://t.me/extract_content_ai" target="_blank" style="color: #0088cc; text-decoration: none; font-size: 12px;">
+             Join our Telegram community
+        </a>
+        <span style="margin: 0 8px; color: #ccc;">•</span>
+        <span style="color: #666; font-size: 12px;">Extract Content AI</span>
+    </div>
+    """, unsafe_allow_html=True)
+
 if __name__ == "__main__":
     main()
