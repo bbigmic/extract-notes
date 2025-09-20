@@ -15,7 +15,7 @@ import yt_dlp
 import openai
 from dotenv import load_dotenv
 import stripe
-from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits, get_db_connection
+from database import init_db, register_user, verify_user, save_transcription, get_user_transcriptions, get_transcription, get_user_credits, use_credit, add_credits, get_db_connection, get_user_premium_tokens
 import json
 from jose import JWTError, jwt
 from passlib.context import CryptContext
