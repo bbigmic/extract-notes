@@ -287,15 +287,15 @@ def use_credit(user_id):
     finally:
         conn.close()
 
-def add_credits(user_id):
-    """Dodaje 30 kredytów do konta użytkownika"""
+def add_credits(user_id, credits_to_add=30):
+    """Dodaje kredyty do konta użytkownika"""
     conn = get_db_connection()
     c = conn.cursor()
     try:
         if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
-            c.execute('UPDATE users SET credits = credits + 30 WHERE id = %s', (user_id,))
+            c.execute('UPDATE users SET credits = credits + %s WHERE id = %s', (credits_to_add, user_id))
         else:
-            c.execute('UPDATE users SET credits = credits + 30 WHERE id = ?', (user_id,))
+            c.execute('UPDATE users SET credits = credits + ? WHERE id = ?', (credits_to_add, user_id))
         conn.commit()
         return True
     except Exception as e:

@@ -464,22 +464,16 @@ def handle_successful_payment(session_id, user_id):
             # Pobierz liczbę kredytów z metadanych
             credits_to_add = int(session.metadata.get('credits', 30))  # Domyślnie 30 jeśli nie znaleziono
             
-            # Dodaj kredyty bezpośrednio używając funkcji z database.py
-            conn = get_db_connection()
-            c = conn.cursor()
-            try:
-                c.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (credits_to_add, user_id))
-                conn.commit()
+            # Dodaj kredyty używając funkcji z database.py
+            if add_credits(user_id, credits_to_add):
                 # Aktualizuj dane użytkownika w sesji
                 user = verify_user(st.session_state.username, None)
                 if user:
                     st.session_state.credits = user[2]
                 return True
-            except Exception as e:
-                print(f"Database error: {e}")
+            else:
+                print(f"Database error: Failed to add credits")
                 return False
-            finally:
-                conn.close()
         return False
     except Exception as e:
         st.error(f"Error processing payment: {str(e)}")
@@ -638,16 +632,15 @@ def main():
                     """, unsafe_allow_html=True)
                     
                     st.subheader("Select Credits Package")
-                    st.write("Choose your package:", help="Select the package that best suits your needs")
+                    st.write("Choose your package:")
                     credit_package = st.radio(
-                        label="",
+                        label="Credit Package",
                         options=[
                             "Buy 30 Credits for $4",
                             "Buy 300 Credits for $32",
                             "Buy 3000 Credits for $149"
                         ],
-                        key="credit_package",
-                        label_visibility="collapsed"
+                        key="credit_package"
                     )
                     
                     if st.button("Proceed to Payment", type="primary", key="proceed_payment"):
@@ -707,7 +700,7 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             st.selectbox(
-                "Select transcription language (input)",
+                "Select transcription language (audio/video language)",
                 ["auto", "pl", "en", "de", "fr", "es"],
                 disabled=True,
                 index=2  # Domyślnie wybieramy "en"
