@@ -60,6 +60,8 @@ def init_db():
                     password TEXT NOT NULL,
                     email VARCHAR(255) UNIQUE NOT NULL,
                     credits INTEGER DEFAULT 3,
+                    premium_tokens INTEGER DEFAULT 0,
+                    terms_accepted BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -86,6 +88,8 @@ def init_db():
                     password TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     credits INTEGER DEFAULT 3,
+                    premium_tokens INTEGER DEFAULT 0,
+                    terms_accepted BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -112,6 +116,8 @@ def init_db():
                 password TEXT NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 credits INTEGER DEFAULT 3,
+                premium_tokens INTEGER DEFAULT 0,
+                terms_accepted BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -137,18 +143,18 @@ def hash_password(password):
     """Haszuje hasło używając SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-def register_user(username, password, email):
+def register_user(username, password, email, terms_accepted=False):
     """Rejestruje nowego użytkownika"""
     conn = get_db_connection()
     c = conn.cursor()
     try:
         hashed_password = hash_password(password)
         if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
-            c.execute('INSERT INTO users (username, password, email) VALUES (%s, %s, %s)',
-                     (username, hashed_password, email))
+            c.execute('INSERT INTO users (username, password, email, terms_accepted) VALUES (%s, %s, %s, %s)',
+                     (username, hashed_password, email, terms_accepted))
         else:
-            c.execute('INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
-                     (username, hashed_password, email))
+            c.execute('INSERT INTO users (username, password, email, terms_accepted) VALUES (?, ?, ?, ?)',
+                     (username, hashed_password, email, terms_accepted))
         conn.commit()
         return True
     except (sqlite3.IntegrityError, psycopg2.IntegrityError):
@@ -261,7 +267,7 @@ def get_user_credits(user_id):
         conn.close()
 
 def use_credit(user_id):
-    """Używa jeden kredyt użytkownika. Zwraca True jeśli operacja się powiodła."""
+    """Używa jeden kredyt użytkownika i dodaje premium token. Zwraca True jeśli operacja się powiodła."""
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -272,9 +278,9 @@ def use_credit(user_id):
         credits = c.fetchone()[0]
         if credits > 0:
             if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
-                c.execute('UPDATE users SET credits = credits - 1 WHERE id = %s', (user_id,))
+                c.execute('UPDATE users SET credits = credits - 1, premium_tokens = premium_tokens + 1 WHERE id = %s', (user_id,))
             else:
-                c.execute('UPDATE users SET credits = credits - 1 WHERE id = ?', (user_id,))
+                c.execute('UPDATE users SET credits = credits - 1, premium_tokens = premium_tokens + 1 WHERE id = ?', (user_id,))
             conn.commit()
             return True
         return False
@@ -297,3 +303,39 @@ def add_credits(user_id):
         return False
     finally:
         conn.close() 
+
+def get_user_premium_tokens(user_id):
+    """Pobiera liczbę premium tokens użytkownika"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
+            c.execute('SELECT premium_tokens FROM users WHERE id = %s', (user_id,))
+        else:
+            c.execute('SELECT premium_tokens FROM users WHERE id = ?', (user_id,))
+        result = c.fetchone()
+        return result[0] if result else 0
+    finally:
+        conn.close()
+
+def migrate_database():
+    """Dodaje nowe kolumny do istniejących tabel"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        if DATABASE_URL and HAS_POSTGRES and 'neon' in DATABASE_URL:
+            # PostgreSQL
+            c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_tokens INTEGER DEFAULT 0")
+            c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted BOOLEAN DEFAULT FALSE")
+        else:
+            # SQLite
+            c.execute("ALTER TABLE users ADD COLUMN premium_tokens INTEGER DEFAULT 0")
+            c.execute("ALTER TABLE users ADD COLUMN terms_accepted BOOLEAN DEFAULT FALSE")
+        conn.commit()
+    except Exception as e:
+        print(f"Migration error (columns may already exist): {e}")
+    finally:
+        conn.close()
+
+# Wywołaj migrację w init_db()
+migrate_database() 

@@ -62,9 +62,9 @@ def handle_login(username: str, password: str):
         "credits": user[2]
     }
 
-def handle_register(username: str, password: str, email: str):
+def handle_register(username: str, password: str, email: str, terms_accepted: bool = False):
     try:
-        success = register_user(username, password, email)
+        success = register_user(username, password, email, terms_accepted)
         if success:
             return True
         return False
@@ -590,21 +590,31 @@ def main():
                     confirm_password = st.text_input("Confirm Password", type="password")
                     email = st.text_input("Email")
                     
+                    # Dodaj checkbox dla terms
+                    terms_accepted = st.checkbox(
+                        "Rejestrując się wyrażasz zgodę na otrzymywanie promocji i innych informacji marketingowych",
+                        value=False
+                    )
+
+                    
                     if st.form_submit_button("Register"):
                         if new_password != confirm_password:
                             st.error("Passwords do not match!")
-                        elif handle_register(new_username, new_password, email):
+                        elif not terms_accepted:
+                            st.error("Musisz zaakceptować warunki użytkowania!")
+                        elif handle_register(new_username, new_password, email, terms_accepted):
                             st.success("Registration successful! You can now log in. You received 3 free credits!")
                         else:
                             st.error("Username or email already exists!")
         else:
             st.title(f"Welcome, {st.session_state.username}!")
-            # Kontener na kredyty, który będzie aktualizowany
-            credits_container = st.empty()
-            credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
-            st.session_state.credits_container = credits_container
 
-            
+            # Kontener na kredyty i premium tokens
+            credits_container = st.empty()
+            premium_tokens = get_user_premium_tokens(st.session_state.user_id)
+            credits_container.markdown(f"### Credits remaining: {st.session_state.credits}")
+            st.markdown(f"### 🏆 Premium Tokens: {premium_tokens}")
+
             # Przycisk do pokazania popup z wyborem pakietu
             if st.button("Buy Credits", type="primary"):
                 st.session_state.show_package_dialog = True
