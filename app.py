@@ -691,11 +691,10 @@ def main():
                 st.rerun()
 
                         # Dodaj link do Telegram
-            st.markdown("<div style='position: fixed; bottom: 0; left: 0; width: 100%; background-color: white; padding: 10px; border-top: 1px solid #e6e6e6; z-index: 999;'>", unsafe_allow_html=True)
+            st.markdown("---")
             st.markdown("### 📱 Join Our Community")
             st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
             st.markdown("Get updates, tips & support!")
-            st.markdown("</div>", unsafe_allow_html=True)
 
             # Pokaż historię transkrypcji
             show_user_transcriptions()
