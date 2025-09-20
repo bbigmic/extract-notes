@@ -615,6 +615,13 @@ def main():
                 st.session_state.show_package_dialog = True
                 st.rerun()
             
+
+                        # Dodaj link do Telegram
+            st.markdown("---")
+            st.markdown("### 📱 Join Our Community")
+            st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
+            st.markdown("Get updates, tips & support!")
+
             # Popup z wyborem pakietu
             if st.session_state.get('show_package_dialog', False):
                 popup_container = st.container()
@@ -687,13 +694,6 @@ def main():
                     del st.session_state[key]
                 st.query_params.clear()
                 st.rerun()
-
-            # Dodaj link do Telegram
-            st.markdown("---")
-            st.markdown("### 📱 Join Our Community")
-            st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-Join%20Community-blue?style=for-the-badge&logo=telegram)](https://t.me/extract_content_ai)")
-            st.markdown("Get updates, tips & support!")
-
 
             # Pokaż historię transkrypcji
             show_user_transcriptions()
@@ -963,16 +963,6 @@ def main():
                 progress.empty()
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
-
-    st.markdown("---")
-    st.markdown("""
-<div style="text-align: center; padding: 20px; background-color: #f0f2f6; border-radius: 10px; margin-top: 30px;">
-    <h4>📱 Stay Connected!</h4>
-    <p>Join our Telegram community for updates, tips, and support:</p>
-    <a href="https://t.me/extract_content_ai" target="_blank" style="display: inline-block; background: #0088cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Join Telegram Community</a>
-    <p style="margin-top: 10px; font-size: 12px; color: #666;">Extract Content AI - Powered by AI</p>
-</div>
-""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
