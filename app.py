@@ -694,7 +694,7 @@ def main():
     # Główny interfejs aplikacji
     if not st.session_state.authenticated:
         st.warning("🔒 Please log in to use the application")
-        st.info("Application features are only available for logged-in users. Use the sidebar to log in or register.")
+        st.info("Application features are only available for logged-in users. Use the sidebar to log in or register for free.")
         
         # Pokazujemy interfejs, ale z zablokowanymi funkcjami
         col1, col2 = st.columns(2)
