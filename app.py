@@ -708,7 +708,7 @@ def main():
 
     # Główny interfejs aplikacji
     if not st.session_state.authenticated:
-        st.button("🔑 Login / Register to use the app.", type="primary", use_container_width=True):
+        st.warning("🔒 Please log in to use the application")
         st.info("Application features are only available for logged-in users. Use the sidebar to log in or register for free.")
         
         # Pokazujemy interfejs, ale z zablokowanymi funkcjami
