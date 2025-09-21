@@ -709,11 +709,7 @@ def main():
     # Główny interfejs aplikacji
     if not st.session_state.authenticated:
         st.warning("🔒 Please log in to use the application")
-        
-        # Dodajemy przycisk do otwarcia sidebara
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🔑 Login / Register", type="primary", use_container_width=True):
+        st.button("🔑 Login / Register", type="primary", use_container_width=True):
         
         st.info("Application features are only available for logged-in users. Use the sidebar to log in or register for free.")
         
