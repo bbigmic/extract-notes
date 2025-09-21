@@ -710,10 +710,7 @@ def main():
     if not st.session_state.authenticated:
         st.warning("🔒 Please log in to use the application")
         
-        # Przycisk do otwarcia sidebara
-        st.button("🔑 Login / Register", type="primary", use_container_width=True)
-        
-        st.info("Application features are only available for logged-in users. Use the sidebar to log in or register for free.")
+        st.info("Application features are only available for logged-in users. Use the sidebar (arrow in the top-left corner) to log in or register for free.")
         
         # Pokazujemy interfejs, ale z zablokowanymi funkcjami
         col1, col2 = st.columns(2)
