@@ -927,7 +927,7 @@ def main():
                 audio_path = convert_to_wav(file_path)
                 temp_files.append(audio_path)
                 
-                status_placeholder.text("Transcribing audio... it can take a few minutes.")
+                status_placeholder.text("Transcribing audio... it can take a few minutes. Processing a 20-minute video can take up to 10 minutes. Don't close this window")
                 progress.progress(50)
                 st.session_state.transcription = transcribe_audio(audio_path, transcription_language)
                 
