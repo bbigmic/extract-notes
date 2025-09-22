@@ -225,7 +225,7 @@ def transcribe_audio(audio_path, language):
         result = model.transcribe(
             audio_path,
             language=language if language != "auto" else None,
-            fp16=False,  # Wyłączamy fp16 dla lepszej kompatybilności
+            fp16=torch.cuda.is_available(),  # Włączamy fp16 tylko na GPU
             verbose=True  # Włączamy szczegółowe logi
         )
         
